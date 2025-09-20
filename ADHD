@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ADHD Learning Support</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.cdnfonts.com/css/opendyslexic" rel="stylesheet">
+  <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5f9ff;
+      padding: 20px;
+      margin: 0;
+      line-height: 1.6;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    body.dark {
+      background-color: #1e1e1e;
+      color: #f5f5f5;
+    }
+
+    h1, h2 {
+      color: #2c3e50;
+    }
+
+    body.dark h1, body.dark h2 {
+      color: #f5f5f5;
+    }
+
+    section {
+      margin-bottom: 40px;
+    }
+
+    input[type="file"], textarea, button, input[type="text"], input[type="number"] {
+      display: block;
+      margin-top: 10px;
+      padding: 10px;
+      font-size: 16px;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    #segments, #checklistItems {
+      margin-top: 20px;
+    }
+
+    .segment {
+      background: #ffffff;
+      border-left: 5px solid #3498db;
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .segment.highlighted {
+      background: #fff59d;
+    }
+
+    .segment.done {
+      opacity: 0.6;
+      text-decoration: line-through;
+    }
+
+    .timer-display {
+      font-size: 24px;
+      margin: 10px 0;
+    }
+
+    .checklist-item {
+      margin-bottom: 8px;
+    }
+
+    button.small {
+      width: auto;
+      margin-top: 5px;
+    }
+
+    .segment button {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>ADHD-Friendly Learning Toolkit</h1>
+
+  <!-- Accessibility Controls -->
+  <section>
+    <h2>🔧 Accessibility Options</h2>
+    <button onclick="toggleFont()">Toggle Dyslexia-Friendly Font</button>
+  </section>
+
+  <!-- Timer -->
+  <section>
+    <h2>1. Focus Timer </h2>
+    <label>Focus (minutes): <input type="number" id="focusTime" value="25"></label>
+    <label>Break (minutes): <input type="number" id="breakTime" value="5"></label>
+    <div class="timer-display" id="timerDisplay">25:00</div>
+    <button onclick="startTimer()">Start</button>
+    <button onclick="resetTimer()">Reset</button>
+  </section>
+
+  <!-- Checklist -->
+  <section>
+    <h2>2. Checklist / Goals</h2>
+    <input type="text" id="checklistInput" placeholder="Add a task or goal">
+    <button onclick="addChecklistItem()">Add</button>
+    <div id="checklistItems"></div>
+  </section>
+
+  <!-- Motivational Reminders -->
+  <section>
+    <h2>3. 💡 Motivation</h2>
+    <div id="motivation">Stay focused—you’re doing great! 🌟</div>
+  </section>
+
+  <!-- File Loader -->
+  <section>
+    <h2>4. Upload Your Study Material</h2>
+    <input type="file" id="fileInput" accept=".txt,.docx,.pdf">
+    <textarea id="manualInput" rows="5" placeholder="Or paste your text here..."></textarea>
+    <label>Lines per segment: <input type="number" id="linesPerSegment" value="2" min="1"></label>
+    <button onclick="processText()">Process Text</button>
+  </section>
+
+  <!-- Bite-sized Segments -->
+  <section>
+    <h2>5. Bite-Sized Segments</h2>
+    <div id="segments"><em>No content loaded.</em></div>
+  </section>
+
+  <button onclick="window.location.href='Home Sample.html'" class="small">← Back to Home Page</button>
+
+  <script>
+    let timer, time;
+    let focusMinutes = 25, breakMinutes = 5;
+
+    function startTimer() {
+      clearInterval(timer);
+      focusMinutes = parseInt(document.getElementById("focusTime").value) || 25;
+      breakMinutes = parseInt(document.getElementById("breakTime").value) || 5;
+      time = focusMinutes * 60;
+      runTimerCycle("focus");
+    }
+
+    function runTimerCycle(mode) {
+      clearInterval(timer);
+      timer = setInterval(() => {
+        if (time > 0) {
+          time--;
+          updateTimerDisplay();
+        } else {
+          clearInterval(timer);
+          if (mode === "focus") {
+            alert("Break Time! Take a rest.");
+            time = breakMinutes * 60;
+            runTimerCycle("break");
+          } else {
+            alert("Back to work! You’ve got this.");
+            time = focusMinutes * 60;
+            runTimerCycle("focus");
+          }
+        }
+      }, 1000);
+    }
+
+    function resetTimer() {
+      clearInterval(timer);
+      time = focusMinutes * 60;
+      updateTimerDisplay();
+    }
+
+    function updateTimerDisplay() {
+      const minutes = Math.floor(time / 60).toString().padStart(2, '0');
+      const seconds = (time % 60).toString().padStart(2, '0');
+      document.getElementById("timerDisplay").textContent = `${minutes}:${seconds}`;
+    }
+
+    function addChecklistItem() {
+      const input = document.getElementById("checklistInput");
+      const task = input.value.trim();
+      if (!task) return;
+      const div = document.createElement("div");
+      div.className = "checklist-item";
+      div.innerHTML = `<input type="checkbox"> ${task}`;
+      document.getElementById("checklistItems").appendChild(div);
+      input.value = "";
+    }
+
+    function processText() {
+      let text = document.getElementById("manualInput").value.trim();
+      if (!text) {
+        document.getElementById("segments").innerHTML = "<em>No content entered.</em>";
+        return;
+      }
+      displaySegments(text);
+    }
+
+    function displaySegments(text) {
+      const sentences = text.split(/(?<=[.?!])\s+/);
+      const linesPerSegment = parseInt(document.getElementById("linesPerSegment").value) || 2;
+      const segmentsDiv = document.getElementById("segments");
+      segmentsDiv.innerHTML = "";
+      for (let i = 0; i < sentences.length; i += linesPerSegment) {
+        const chunk = sentences.slice(i, i + linesPerSegment).join(" ");
+        const div = document.createElement("div");
+        div.className = "segment";
+        div.textContent = chunk;
+
+        // Mark as done
+        div.onclick = () => div.classList.toggle("done");
+
+        // Add TTS button
+        const btn = document.createElement("button");
+        btn.textContent = "🔊";
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          speakText(chunk);
+        };
+        div.appendChild(btn);
+
+        // Highlight on double click
+        div.ondblclick = () => div.classList.toggle("highlighted");
+
+        segmentsDiv.appendChild(div);
+      }
+    }
+
+    function speakText(text) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      speechSynthesis.speak(utterance);
+    }
+
+    function toggleFont() {
+      document.body.style.fontFamily =
+        document.body.style.fontFamily.includes("OpenDyslexic") ? "Arial, sans-serif" : "'OpenDyslexic', Arial, sans-serif";
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle("dark");
+    }
+
+    // Motivational messages every few minutes
+    const messages = [
+      "Keep going, you’re making progress! 🚀",
+      "Take a deep breath, you’re doing awesome! 🌈",
+      "Stay focused, small steps lead to big wins! 💪",
+      "Believe in yourself—you got this! 🌟"
+    ];
+    setInterval(() => {
+      const msg = messages[Math.floor(Math.random() * messages.length)];
+      document.getElementById("motivation").textContent = msg;
+    }, 60000);
+
+    // File upload handler
+    document.getElementById("fileInput").addEventListener("change", function () {
+      const file = this.files[0];
+      if (!file) return;
+      const ext = file.name.split('.').pop().toLowerCase();
+      const reader = new FileReader();
+
+      if (ext === "txt") {
+        reader.onload = e => {
+          document.getElementById("manualInput").value = e.target.result;
+          processText();
+        };
+        reader.readAsText(file);
+      } else if (ext === "docx") {
+        reader.onload = e => {
+          mammoth.extractRawText({ arrayBuffer: e.target.result })
+            .then(result => {
+              document.getElementById("manualInput").value = result.value;
+              processText();
+            }).catch(err => alert("DOCX error: " + err.message));
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (ext === "pdf") {
+        reader.onload = e => {
+          const typedArray = new Uint8Array(e.target.result);
+          pdfjsLib.getDocument(typedArray).promise.then(async pdf => {
+            let text = "";
+            for (let i = 1; i <= pdf.numPages; i++) {
+              const page = await pdf.getPage(i);
+              const content = await page.getTextContent();
+              text += content.items.map(item => item.str).join(" ") + "\n\n";
+            }
+            document.getElementById("manualInput").value = text;
+            processText();
+          }).catch(err => alert("PDF error: " + err.message));
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        alert("Unsupported file type.");
+      }
+    });
+  </script>
+</body>
+</html>
