@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dyslexia-Friendly Converter</title>
+  <link href="https://fonts.cdnfonts.com/css/opendyslexic" rel="stylesheet">
+  <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'OpenDyslexic', Arial, sans-serif;
+      background-color: #f5f9ff;
+      color: #000000;
+      padding: 20px;
+      font-size: 18px;
+      line-height: 1.6;
+    }
+
+    textarea, input[type="file"] {
+      width: 100%;
+      padding: 10px;
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    .file-label {
+  display: inline-block;
+  background-color: #e0ecff;
+  color: #2c3e50;
+  font-family: 'OpenDyslexic', Arial, sans-serif;
+  font-size: 16px;
+  padding: 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 10px;
+  text-align: center;
+}
+.file-label:hover {
+  background-color: #c9dcf9;
+}
+
+
+    .output {
+      background-color: #f4f4f4;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+
+    button {
+      font-family: 'OpenDyslexic', Arial, sans-serif;
+      font-size: 16px;
+      padding: 10px 15px;
+      margin-right: 10px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Dyslexia-Friendly Text Converter</h2>
+
+  <!-- File Upload -->
+  <label for="fileInput">Upload a .txt, .docx, or .pdf file:</label><br>
+  <input type="file" id="fileInput" accept=".txt,.docx,.pdf" style="display:none;">
+  <br>
+<label for="fileInput" class="file-label">Choose a file (.txt, .docx, .pdf)</label>
+<br>
+
+  <!-- Manual Text Input -->
+  <label for="userInput">Or enter your text:</label>
+  <textarea id="userInput" placeholder="Paste or type your content here..."></textarea><br>
+
+  <!-- Control Buttons -->
+  <button onclick="startReading()">Start Reading</button>
+  <button onclick="togglePause()">Pause/Resume</button>
+  <button onclick="rewind10()">Rewind 10s</button>
+
+
+  <!-- Output Display -->
+  <div id="output" class="output"></div>
+  <script>
+    let utterance;
+    let isPaused = false;
+    let currentText = '';
+    let currentCharIndex = 0;
+
+    // Auto-update output on typing
+    document.getElementById("userInput").addEventListener("input", function () {
+      updateOutput(this.value);
+    });
+
+    document.getElementById("fileInput").addEventListener("change", function () {
+      const file = this.files[0];
+      if (!file) return;
+
+      const fileType = file.name.split('.').pop().toLowerCase();
+      //convert txt file
+      if (fileType === "txt") {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          document.getElementById("userInput").value = e.target.result;
+          updateOutput(e.target.result);
+        };
+        reader.readAsText(file);
+      }
+       //convert the document
+       else if (fileType === "docx") {
+        const reader = new FileReader();
+        reader.onload = function (event) {
+          mammoth.extractRawText({ arrayBuffer: event.target.result })
+            .then(function (result) {
+              document.getElementById("userInput").value = result.value;
+              updateOutput(result.value);
+            })
+            .catch(function (err) {
+              alert("Error reading Word document: " + err.message);
+            });
+        };
+        reader.readAsArrayBuffer(file);
+      }
+      //convert the pdf
+      else if (fileType === "pdf") {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const typedArray = new Uint8Array(e.target.result);
+          pdfjsLib.getDocument(typedArray).promise.then(async function (pdf) {
+            let fullText = "";
+            for (let i = 1; i <= pdf.numPages; i++) {
+              const page = await pdf.getPage(i);
+              const content = await page.getTextContent();
+              const text = content.items.map(item => item.str).join(" ");
+              fullText += text + "\n\n";
+            }
+            document.getElementById("userInput").value = fullText;
+            updateOutput(fullText);
+          }).catch(function (err) {
+            alert("Error reading PDF file: " + err.message);
+          });
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        alert("Unsupported file type. Please upload a .txt, .docx, or .pdf file.");
+      }
+    });
+
+    function updateOutput(text) {
+      const output = document.getElementById("output");
+      if (!text.trim()) {
+        output.innerHTML = "<em>Please enter or upload some text to view.</em>";
+        return;
+      }
+      const formatted = text.trim().replace(/\n/g, "<br><br>");
+      output.innerHTML = formatted;
+    }
+
+    function startReading() {
+      const text = document.getElementById("output").innerText.trim();
+      if (!text) {
+        alert("Please enter or upload some text first.");
+        return;
+      }
+
+      speechSynthesis.cancel(); // Stop any existing speech
+      currentText = text;
+      utterance = new SpeechSynthesisUtterance(text.slice(currentCharIndex));
+      utterance.rate = 0.9;
+
+      utterance.onboundary = function (event) {
+        if (event.name === 'word') {
+          currentCharIndex = event.charIndex;
+        }
+      };
+
+      utterance.onend = () => {
+        currentCharIndex = 0;
+        isPaused = false;
+      };
+
+      speechSynthesis.speak(utterance);
+      isPaused = false;
+    }
+
+    function togglePause() {
+      if (speechSynthesis.speaking) {
+        if (speechSynthesis.paused) {
+          speechSynthesis.resume();
+          isPaused = false;
+        } else {
+          speechSynthesis.pause();
+          isPaused = true;
+        }
+      }
+    }
+
+    function rewind10() {
+      if (!currentText || currentCharIndex <= 0) return;
+
+      currentCharIndex = Math.max(0, currentCharIndex - 100); // Approximate rewind
+      speechSynthesis.cancel();
+
+      utterance = new SpeechSynthesisUtterance(currentText.slice(currentCharIndex));
+      utterance.rate = 0.9;
+
+      utterance.onboundary = function (event) {
+        if (event.name === 'word') {
+          currentCharIndex += event.charIndex;
+        }
+      };
+
+      speechSynthesis.speak(utterance);
+    }
+  </script>
+ <button onclick="window.location.href='Home sample.html'" class="small">← Back to Home Page</button>
+</body>
+</html>
